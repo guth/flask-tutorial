@@ -11,6 +11,7 @@ bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 @bp.route('/register', methods=('GET', 'POST'))
 def register():
+    """Registers a new user."""
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -22,7 +23,7 @@ def register():
         elif not password:
             error = "Password is required."
 
-        user = db.execute('SELECT id FROM user WHERE username = ?', (username)).fetchone()
+        user = db.execute('SELECT id FROM user WHERE username = ?', (username,)).fetchone()
         if user is not None:
             error = f'User {username} is already registered'
 
@@ -41,13 +42,17 @@ def register():
 
 @bp.route('/login', methods=('GET', 'POST'))
 def login():
+    """Login a user by adding user_id to the session."""
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         db = get_db()
         error = None
 
-        user = db.execute('SELECT * FROM user WHERE username = ?', (username)).fetchone()
+        user = db.execute(
+            'SELECT * FROM user WHERE username = ?', (username,)
+        ).fetchone()
+
         if user is None:
             error = 'Incorrect username.'
         elif not check_password_hash(user['password'], password):
@@ -56,7 +61,7 @@ def login():
         if error is None:
             session.clear()
             session['user_id'] = user['id']
-            return redirect(url_for('index'))
+            return redirect(url_for('hello'))
 
         flash(error)
 
@@ -65,20 +70,23 @@ def login():
 @bp.route('/logout')
 def logout():
     session.clear()
-    return redirect(url_for('index'))
+    return redirect(url_for('hello'))
 
 @bp.before_app_request
 def load_logged_in_user():
+    """If a user id is stored in the session, load the user object from
+    the database into ``g.user``."""
     user_id = session.get('user_id')
 
     if user_id is None:
         g.user = None
     else:
         g.user = get_db().execute(
-            'SELECT * FROM user WHERE id = ?', (user_id)
+            'SELECT * FROM user WHERE id = ?', (user_id,)
         ).fetchone()
 
 def login_required(view):
+    """View decorator that redirects anonymous users to the login page."""
     @functools.wraps(view)
     def wrapped_view(**kwargs):
         if g.user is None:
